@@ -1,17 +1,18 @@
 {
-    "id": "nodebb-plugin-node-ldap",
+    "id": "nodebb-plugin-node-ldap-new",
     "name": "Node LDAP",
     "description": "An LDAP plugin",
-	"url": "https://github.com/ink-blot/nodebb-plugin-node-ldap",
+	"url": "https://github.com/csturiale/nodebb-plugin-node-ldap",
 	"library": "./index.js",
 	"hooks": [
 		{ "hook": "static:app.load", "method": "init" },
 		{ "hook": "action:auth.overrideLogin", "method": "override"	},
-		{ "hook": "filter:config.get", "method": "get_config" },
-		{ "hook": "filter:admin.header.build", "method": "admin" }
+		{ "hook": "filter:config.get", "method": "getConfig"},
+		{ "hook": "filter:user.whitelistFields", "method": "whitelistFields"},
+		{ "hook": "filter:admin.header.build", "method": "adminHeader" }
 	],
 	"templates": "templates",
 	"acpScripts": [
-		"lib/node_ldap.js"
+		"lib/nodebb_ldap.js"
 	]
 }

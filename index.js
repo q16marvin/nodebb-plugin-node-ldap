@@ -1,345 +1,373 @@
-(function(module) {
+(function (module) {
     "use strict";
     /* globals app, socket */
-    var user           = module.parent.require('./user'),
-        meta           = module.parent.require('./meta'),
-        db             = module.parent.require('./database'),
-        winston        = module.parent.require('winston'),
-        passport       = module.parent.require('passport'),
-        fs             = module.parent.require('fs'),
-        path           = module.parent.require('path'),
-        nconf          = module.parent.require('nconf'),
-        async          = module.parent.require('async'),
-        local_strategy = module.parent.require('passport-local').Strategy,
-        ldapjs         = require('ldapjs');
+    var user = require.main.require('./src/user'),
+        groups = require.main.require('./src/groups'),
+        meta = require.main.require('./src/meta'),
+        db = require.main.require('./src/database'),
+        passport = require.main.require('passport'),
+        async = require.main.require('async'),
+        local_strategy = require.main.require('passport-local').Strategy,
+        winston = require.main.require('winston'),
+        ldapjs = require('ldapjs');
+    const controllers = require.main.require('./src/controllers');
+
 
     var master_config = {};
-    var node_ldap = {
-        name: "Node LDAP",
-        get_domain: function (base) {
-            var domain = '';
-            if (base !== '') {
-                var temp = base.match(/dc=([^,]*)/gi);
-                if (temp && temp.length > 0) {
-                    domain = temp.map(function (str) {
-                        return str.match(/dc=([^,]*)/i)[1];
-                    }).reduce(function (current, previous) {
-                        return current + '.' + previous;
-                    });
-                }
-            }
-            return domain;
+    var nodebb_ldap = {
+        whitelistFields: (params, callback) => {
+            params.whitelist.push('nodebbldap:data');
+            callback(null, params);
         },
-
-        admin: function (custom_header, callback) {
+        adminHeader: (custom_header, callback) => {
             custom_header.plugins.push({
-                "route": "/plugins/node_ldap",
+                "route": "/plugins/nodebb_ldap",
                 "icon": "fa-cog",
                 "name": "LDAP Settings"
             });
             callback(null, custom_header);
         },
-
-        init: function(params, callback) {
-            function render(req, res, next) {
-                res.render('node_ldap', {});
-            }
-
-            meta.settings.get('nodeldap', function(err, options) {
-                master_config = options;
-            });
-            params.router.get('/admin/plugins/node_ldap', params.middleware.admin.buildHeader, render);
-            params.router.get('/api/admin/plugins/node_ldap', render);
-
-            callback();
-        },
-
-        get_config: function(options, callback) {
-            meta.settings.get('nodeldap', function(err, settings) {
+        getConfig: (options, callback) => {
+            options = options ? options : {};
+            meta.settings.get('nodebbldap', (err, settings) => {
                 if (err) {
-                    return callback(null, options);
+                    return callback(err, options);
                 }
-                master_config = settings;
-                options.nodeldap = settings;
+                options.nodebbldap = settings;
                 callback(null, options);
             });
         },
 
-        fetch_config: function(callback) {
-            meta.settings.get('nodeldap', function(err, options) {
-                callback(options);
+        init: (params, callback) => {
+            const render = (req, res, next) => {
+                res.render('nodebb_ldap', {});
+            };
+            winston.verbose("[LDAP] Calling Init")
+            params.router.get('/admin/plugins/nodebb_ldap', params.middleware.admin.buildHeader, render);
+            params.router.get('/api/admin/plugins/nodebb_ldap', render);
+
+            async.waterfall([
+                nodebb_ldap.updateConfig,
+                nodebb_ldap.findLdapGroups,
+                (groups, callback) => {
+                    async.each(groups, nodebb_ldap.createGroup, callback);
+                }
+            ], (e) => {
+                if (e) {
+                    console.error('config seems invalid', e);
+                }
+                callback();
             });
         },
 
-        murmurhash3_32_gc: function(key, seed) {
-            seed = seed || 12345;
-            var remainder, bytes, h1, h1b, c1, c1b, c2, c2b, k1, i;
-
-            remainder = key.length & 3; // key.length % 4
-            bytes = key.length - remainder;
-            h1 = seed;
-            c1 = 0xcc9e2d51;
-            c2 = 0x1b873593;
-            i = 0;
-
-            while (i < bytes) {
-                k1 = ((key.charCodeAt(i) & 0xff)) | ((key.charCodeAt(++i) & 0xff) << 8) | ((key.charCodeAt(++i) & 0xff) << 16) | ((key.charCodeAt(++i) & 0xff) << 24);
-                ++i;
-
-                k1 = ((((k1 & 0xffff) * c1) + ((((k1 >>> 16) * c1) & 0xffff) << 16))) & 0xffffffff;
-                k1 = (k1 << 15) | (k1 >>> 17);
-                k1 = ((((k1 & 0xffff) * c2) + ((((k1 >>> 16) * c2) & 0xffff) << 16))) & 0xffffffff;
-
-                h1 ^= k1;
-                h1 = (h1 << 13) | (h1 >>> 19);
-                h1b = ((((h1 & 0xffff) * 5) + ((((h1 >>> 16) * 5) & 0xffff) << 16))) & 0xffffffff;
-                h1 = (((h1b & 0xffff) + 0x6b64) + ((((h1b >>> 16) + 0xe654) & 0xffff) << 16));
-            }
-
-            k1 = 0;
-
-            switch (remainder) {
-                case 3: k1 ^= (key.charCodeAt(i + 2) & 0xff) << 16; break;
-                case 2: k1 ^= (key.charCodeAt(i + 1) & 0xff) << 8; break;
-                case 1: k1 ^= (key.charCodeAt(i) & 0xff);
-                        k1 = (((k1 & 0xffff) * c1) + ((((k1 >>> 16) * c1) & 0xffff) << 16)) & 0xffffffff;
-                        k1 = (k1 << 15) | (k1 >>> 17);
-                        k1 = (((k1 & 0xffff) * c2) + ((((k1 >>> 16) * c2) & 0xffff) << 16)) & 0xffffffff;
-                        h1 ^= k1;
-                        break;
-            }
-
-            h1 ^= key.length;
-            h1 ^= h1 >>> 16;
-            h1 = (((h1 & 0xffff) * 0x85ebca6b) + ((((h1 >>> 16) * 0x85ebca6b) & 0xffff) << 16)) & 0xffffffff;
-            h1 ^= h1 >>> 13;
-            h1 = ((((h1 & 0xffff) * 0xc2b2ae35) + ((((h1 >>> 16) * 0xc2b2ae35) & 0xffff) << 16))) & 0xffffffff;
-            h1 ^= h1 >>> 16;
-
-            return h1 >>> 0;
-        },
-
-        stringtoint: function (str) {
-            return str.split('').map(function (char) {
-                return char.charCodeAt(0);
-            }).reduce(function (current, previous) {
-                return previous + current;
-            });
-        },
-
-        override: function () {
-            passport.use(new local_strategy({
-                passReqToCallback: true
-            }, function (req, username, password, next) {
-                if (!username) {
-                    return next(new Error('[[error:invalid-username]]'));
-                }
-                if (!password) {
-                    return next(new Error('[[error:invalid-password]]'));
-                }
-                if (typeof master_config.server === 'undefined') {
-                    node_ldap.fetch_config(function(config) {
-                        var options = {
-                            url: config.server + ':' + config.port,
-                        };
-                        master_config = config;
-                        node_ldap.process(options, username, password, next);
-                    });
-                } else {
-                    var options = {
-                        url: master_config.server + ':' + master_config.port,
-                    };
-                    node_ldap.process(options, username, password, next);
-                }
-            }));
-        },
-
-        process: function(options, username, password, next) {
-            try {               
-                var client = ldapjs.createClient(options);
-                var userdetails = username.split('@');
-                if (userdetails.length == 1) {
-
-                    username = username.trim();
-
-                    var opts3 = { 
-                      filter: '&('+master_config.filter+'='+username+')',
-                      scope: 'sub',
-                      sizeLimit: 1
-                    };                
-                    
-                    client.search(master_config.base, opts3, function(err, res) {
-                          if (err) {
-                            return next(new Error('[[error:invalid-username]]'));
-                          }
-                          res.on('searchEntry', function(entry) {
-                                var profile3 = entry.object;
-                                bind_and_search(profile3);
-                          });
-
-                          res.on('error', function(err) {
-                                winston.error('Node LDAP Error:' + err.message);
-                                return next(new Error('[[error:invalid-username]]'));
-                          });
-                    });                                      
-                }
-
-                if (userdetails.length > 1) {
-
-                    username = username.trim();
-                    var opts2 = {
-                      filter: '&(mail='+username+')',
-                      scope: 'sub',
-                      sizeLimit: 1
-                    };                
-                    
-                    client.search(master_config.base, opts2, function(err, res) {
-                          if (err) {
-                            return next(new Error('[[error:invalid-username]]'));
-                          }
-                          res.on('searchEntry', function(entry) {
-                                var profile2 = entry.object;
-                                bind_and_search(profile2);
-                          });
-
-                          res.on('error', function(err) {
-                                winston.error('Node LDAP Error:' + err.message);
-                                return next(new Error('[[error:invalid-email]]'));
-                          });                    
-                    
-                      
-                    });                    
-                }
-
-                function bind_and_search (profilez) {
-                    var username=profilez[master_config.filter];
-                    username = master_config.filter+'='+username+','+master_config.base;
-                    client.bind(username, password, function(err) {
-                        if (err) {
-                            winston.error(err.message);
-                            return next(new Error('[[error:invalid-password]]'));
-                        }
-                        var openldap_filter1= username.split(',');
-                        openldap_filter1=openldap_filter1[0];
-                        var openldap_filter2= openldap_filter1.split('=');
-                        openldap_filter1=openldap_filter2[1];
-                        openldap_filter1 = openldap_filter1.trim();
-                        var opt = {filter: '(&(' + master_config.filter + '=' + openldap_filter1 + '))',
-                        scope: 'sub',
-                        sizeLimit: 1
-                        };
-                        var str2 = JSON.stringify(opt, null, 4);
-                        client.search(master_config.base, opt, function (err, res) {
-                            if (err) {
-                                return next(new Error('[[error:invalid-username]]'));
-                            }
-
-                            res.on('searchEntry', function(entry) {
-                                var profile = entry.object;
-                                var id = node_ldap.murmurhash3_32_gc(profile[master_config.dname]);
-                                if (!profile.mail) {
-                                    
-                                }                              
-
-                                node_ldap.login(id, openldap_filter1, profile, function (err, userObject) {
-                                    if (err) {
-                                        winston.error(err);
-                                        return next(new Error('[[error:invalid-email]]'));
-                                    }
-                                    return next(null, userObject);
-                                });
-                            });
-
-                            res.on('error', function(err) {
-                                winston.error('Node LDAP Error:' + err.message);
-                                return next(new Error('[[error:invalid-email]]'));
-                            });
-                        });
-                    });
-                }
-
-            } catch (err) {
-                winston.error('Node LDAP Error :' +  err.message);
-            }
-        },
-
-        login: function (ldapid, username, profile, callback) {
-            var _self = this;
-            var displayname=profile[master_config.dname];           
-            var email=profile.mail;           
-            
-            _self.getuidby_ldapid(ldapid, function (err, uid) {
+        updateConfig: (callback) => {
+            winston.verbose("[LDAP] Calling updateConfig")
+            nodebb_ldap.getConfig(null, (err, config) => {
                 if (err) {
                     return callback(err);
                 }
+                master_config = config.nodebbldap;
+                //winston.verbose("[LDAP] master_config " + JSON.stringify(master_config))
+                callback();
+            });
+        },
 
-                if (uid !== null) {
-                    return callback(null, {
-                        uid: uid
+        override: () => {
+            winston.verbose("[LDAP] Calling override")
+            const local = new local_strategy({passReqToCallback: true}, controllers.authentication.localLogin)
+            nodebb_ldap.updateConfig(() => {
+                if (!master_config.server) {
+                    passport.use(local);
+                } else {
+                    try {
+                        passport.use(new local_strategy({
+                            passReqToCallback: true
+                        }, (req, username, password, next) => {
+                            if (!username) {
+                                return next(new Error('[[error:invalid-email]]'));
+                            }
+                            if (!password) {
+                                return next(new Error('[[error:invalid-password]]'));
+                            }
+                            nodebb_ldap.process(req, username, password, next);
+                        }));
+                    } catch (e) {
+                        console.error('error with ldap auth, falling back to local login', e);
+                        passport.use(local);
+                    }
+                }
+            });
+        },
+
+        findLdapGroups: (callback) => {
+            winston.verbose("[LDAP] findLdapGroups ")
+            if (!master_config.groups_query) {
+                return callback(null, []);
+            }
+            nodebb_ldap.adminClient((err, adminClient) => {
+                //if (err) {
+                //    return callback(nullerr);
+                //}
+                var groups_search = {
+                    filter: master_config.groups_query,
+                    scope: 'sub',
+                    attributes: ['cn', 'uniqueMember']
+                };
+
+                adminClient.search(master_config.base, groups_search, (err, res) => {
+                    let groups = [];
+                    if (err) {
+                        return callback(new Error('groups could not be found'));
+                    }
+                    res.on('searchEntry', (entry) => {
+                        groups.push(entry.object)
                     });
-                    
+
+                    res.on('error', (resErr) => {
+                        //assert.ifError(resErr);
+                    });
+                    res.on('end', () => {
+                        adminClient.unbind();
+
+
+                        callback(null, groups);
+                    });
+                });
+            });
+        },
+
+        adminClient: (callback) => {
+            const tlsOptions = {'rejectUnauthorized': false}
+            const client = ldapjs.createClient({
+                url: master_config.server + ':' + master_config.port,
+                tlsOptions: tlsOptions,
+                timeout: 2000
+            });
+            client.on('error', error => callback(error));
+
+            client.bind(master_config.admin_user, master_config.password, (err) => {
+                if (err) {
+                    return callback(new Error('could not bind with admin config ' + err.message));
+                }
+                callback(null, client);
+            });
+        },
+
+        createGroup: (ldapGroup, callback) => {
+            const groupName = "ldap-" + ldapGroup.cn;
+            const groupData = {
+                name: groupName,
+                userTitleEnabled: false,
+                description: 'LDAP Group ' + ldapGroup.cn,
+                hidden: 1,
+                system: 1,
+                private: 1,
+                disableJoinRequests: true,
+            };
+            groups.create(groupData, () => {
+                callback(null, groupName);
+            });
+        },
+
+        process: (req, username, password, next) => {
+            async.waterfall([
+                    (next) => {
+                        nodebb_ldap.adminClient((err, adminClient) => {
+                            if (err) {
+                                return next(err);
+                            }
+                            winston.verbose("[LDAP] uid=" + master_config.user_query.replace('%username%', username))
+                            var opt = {
+                                filter: master_config.user_query.replace('%username%', username),
+                                sizeLimit: 1,
+                                scope: 'sub',
+                                attributes: ['dn', 'sAMAccountName', 'sn', 'mail', 'uid', //these fields are mandatory
+                                    // optional fields. used to create the user id/fullname
+                                    'givenName', 'displayName',
+                                ]
+                            };
+
+                            adminClient.search(master_config.base, opt, (err, res) => {
+                                var profile;
+                                if (err) {
+                                    return next(err);
+                                }
+                                res.on('searchEntry', (entry) => {
+                                    profile = entry.object;
+                                });
+                                res.on('end', () => {
+                                    adminClient.unbind();
+                                    if (profile) {
+                                        const tlsOptions = {'rejectUnauthorized': false}
+                                        const userClient = ldapjs.createClient({
+                                            url: master_config.server + ':' + master_config.port,
+                                            tlsOptions: tlsOptions
+                                        });
+                                        userClient.bind(profile.dn, password, (err) => {
+                                            userClient.unbind();
+                                            if (err) {
+                                                return next(new Error('[[error:invalid-email]]'));
+                                            }
+
+                                            nodebb_ldap.login(profile, (err, userObject) => {
+                                                if (err) {
+                                                    return next(new Error('[[error:invalid-email]]'));
+                                                }
+                                                return next(null, userObject);
+                                            });
+                                        });
+                                    } else {
+                                        return next(new Error('[[error:invalid-email]]'));
+                                    }
+                                });
+                                res.on('error', (err) => {
+                                    adminClient.unbind();
+                                    return next(new Error('[[error:invalid-email]]'));
+                                });
+
+                            });
+                        });
+                    }
+                ],
+                (err, user) => {
+                    if (err || !user) {
+                        controllers.authentication.localLogin(req, username, password, next);
+                    } else {
+                        next(null, user);
+                    }
+                }
+            );
+        },
+
+        login: (profile, callback) => {
+            // build the username
+            winston.verbose("[LDAP] Calling login")
+            let fullname = profile.sn;
+            if (profile[master_config.sname]) {
+                fullname = profile[master_config.sname];
+            }
+            let username = fullname;
+            if (profile[master_config.dname]) {
+                username = profile[master_config.dname];
+            }
+            let email = profile.mail;
+            if (profile[master_config.email_field]) {
+                email = profile[master_config.email_field];
+            }
+            if (email.indexOf("@") === -1) {
+                if (master_config.email_suffix.indexOf("@") === -1) {
+                    email = email + "@" + master_config.email_suffix
+                } else {
+                    email = email + master_config.email_suffix
+                }
+            }
+            winston.verbose("[LDAP] fullname: " + fullname)
+            winston.verbose("[LDAP] username: " + username)
+            winston.verbose("[LDAP] email: " + email)
+            nodebb_ldap.getUserByLdapUid(profile.uid, (err, dbUser) => {
+                if (err) {
+                    return callback(err);
+                }
+                if (dbUser.uid !== 0) {
+                    // user exists
+                    // now we check the user groups
+                    winston.verbose("[LDAP] user exists")
+                    return nodebb_ldap.postLogin(dbUser.uid, profile.uid, callback);
                 } else {
                     // New User
-                    var success = function (uid) {
-                        // Save provider-specific information to the user
-                        user.setUserField(uid, 'ldapid', ldapid);
-                        db.setObjectField('ldapid:uid', ldapid, uid);
-                        callback(null, {
-                            uid: uid
-                        });
-
-                        
-                    };
-                  
-                    return user.getUidByEmail(email, function (err, uid) {
+                    winston.verbose("[LDAP] user does not exists")
+                    let pattern = new RegExp(/[\ ]*\(.*\)/);
+                    if (pattern.test(username)) {
+                        username = username.replace(pattern, '');
+                    }
+                    winston.verbose("[LDAP] username: " + username + " fullname: " + fullname + " email: " + email)
+                    return user.create({username: username, fullname: fullname, email: email}, (err, uid) => {
                         if (err) {
                             return callback(err);
                         }
-
-                        if (!uid) {
-                            var pattern = new RegExp(/[\ ]*\(.*\)/);
-                            if (pattern.test(username)) {
-                                username = username.replace(pattern, '');
-                            }                           
-                            var fullnamez=profile[master_config.gname]+' '+profile[master_config.sname];
-                            return user.create({username: displayname, fullname: fullnamez, email: email}, function (err, uid) {
-                                if (err) {
-                                    return callback(err);
-                                }
-                                if (master_config.autovalidate == 1) {
-                                    user.setUserField(uid, 'email:confirmed', 1);
-                                }                            
-                                return success(uid);
-                            });
-                        } else {
-                          
-                            return success(uid); // Existing account -- merge
+                        winston.verbose("[LDAP] Creating the user and set autovalidate to: " + master_config.autovalidate === "on")
+                        if (master_config.autovalidate === "on") {
+                            user.setUserField(uid, 'email:confirmed', 1);
                         }
+                        user.setUserFields(uid, {
+                            'nodebbldap:uid:': profile.uid
+                        });
+                        db.setObjectField('ldapid:uid', profile.uid, uid)
+                        return nodebb_ldap.postLogin(uid, profile.uid, callback);
                     });
                 }
             });
         },
-        
-        getuidby_ldapid: function (ldapid, callback) {
-            db.getObjectField('ldapid:uid', ldapid, function (err, uid) {
-                if (err) {
-                    return callback(err);
-                }
 
-                db.getObject('user:'+uid, function (err, userldapid) {
-                    var luid = null;
-                    if(userldapid){
-                        luid=userldapid.uid;
-                    }
+        postLogin: (uid, ldapId, callback) => {
+            async.waterfall([
+                    nodebb_ldap.findLdapGroups,
+                    (groups, callback) => {
+                        winston.verbose("[LDAP] Groups " + groups)
+                        async.each(groups,
+                            (ldapGroup, callback) => {
+                                winston.verbose("[LDAP] ldapGroup " + ldapGroup)
+                                nodebb_ldap.groupJoin(ldapGroup, ldapId, uid, callback);
+                            }, callback);
+                    }],
+                () => {
+                    callback(null, {uid: uid});
+                }
+            );
+        },
+
+        groupJoin: (ldapGroup, ldapId, uid, callback) => {
+            winston.verbose("[LDAP] groupJoin " + ldapGroup + " for user " + ldapId + " uid " + uid)
+            nodebb_ldap.createGroup(ldapGroup,
+                (err, groupId) => {
                     if (err) {
                         return callback(err);
                     }
-                    return callback(null, luid);
+                    let members = ldapGroup.uniqueMember;
+                    if (!Array.isArray(members)) {
+                        members = [members];
+                    }
+                    winston.verbose("[LDAP] groupJoin members " + members && typeof members)
+                    let found = false
+                    if (members) {
+
+                        members.forEach(member => {
+                            if (member && member.indexOf(ldapId) != -1) {
+                                found = true
+                            }
+                        });
+                    }
+                    if (found) {
+                        const groupsToJoin = [groupId];
+                        if ((master_config.admin_groups || '').split(',').includes(ldapGroup.cn)) {
+                            winston.verbose("[LDAP] joins admin group")
+                            groupsToJoin.push('administrators');
+                        }
+                        if ((master_config.moderator_groups || '').split(',').includes(ldapGroup.cn)) {
+                            groupsToJoin.push('Global Moderators');
+                        }
+                        return groups.join(groupsToJoin, uid, callback);
+                    } else {
+                        callback();
+                    }
+                }
+            );
+        },
+
+        getUserByLdapUid: (ldapUid, callback) => {
+            db.getObjectField('ldapid:uid', ldapUid, (err, uid) => {
+                if (err) {
+                    return callback(err);
+                }
+                user.getUserData(uid, (err, data) => {
+                    if (err) {
+                        return callback(err);
+                    }
+                    callback(null, data);
                 });
             });
-        }      
-        
+        },
     };
-    module.exports = node_ldap;
+    module.exports = nodebb_ldap;
 
 }(module));

@@ -1,22 +1,26 @@
 {
-  "name": "nodebb-plugin-node-ldap",
-  "version": "1.0.1",
-  "description": "Node LDAP Login",
+  "name": "nodebb-plugin-node-ldap-new",
+  "version": "1.0.0",
+  "description": "NodeBB LDAP Login",
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ink-blot/nodebb-plugin-node-ldap"
+    "url": "https://github.com/csturiale/nodebb-plugin-node-ldap"
   },
   "keywords": [
     "nodebb",
     "plugin",
-    "ldap"
+    "ldap",
+    "auth"
   ],
   "author": {
-    "name": "smartameer",
-    "email": "smartameer@icloud.com"
+    "name": "csturiale"
   },
   "contributors": [
+    {
+      "name": "csturiale",
+      "url": "https://github.com/csturiale"
+    },
     {
       "name": "ink-blot",
       "url": "https://github.com/ink-blot"
@@ -25,14 +29,16 @@
       "name": "vishnu667",
       "email": "vishnu667@gmail.com",
       "url": "http://vishnu667.github.io/"
-    }    
+    }
   ],
   "license": "MIT",
   "readmeFilename": "README.md",
   "nbbpm": {
-    "compatibility": "^1.0.0"
+    "compatibility": "^1.7.0"
   },
   "dependencies": {
-    "ldapjs": "~1.0.0"
+    "async": "^3.2.0",
+    "ldapjs": "~2.2.4",
+    "ldap-filter": "0.3.3"
   }
 }
