@@ -106,7 +106,7 @@
             }
             nodebb_ldap.adminClient((err, adminClient) => {
                 //if (err) {
-                //    return callback(nullerr);
+                //    return adminClient(null);
                 //}
                 var groups_search = {
                     filter: master_config.groups_query,

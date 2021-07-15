@@ -1,4 +1,4 @@
-<form class="ldap-settings form-horizontal" onsubmit="return false;">
+<form class="ldap-settings form-horizontal" autocomplete="off" onsubmit="return false;">
   <div class="row">
     <div class="col-md-12 col-sm-12 col-lg-12">
       <h1 class="page-header"><i class="fa fa-cog"></i>LDAP Settings</h1>
@@ -38,7 +38,7 @@
               <label class="col-sm-3 control-label" for="base">Password</label>
               <div class="col-sm-9">
                 <input type="password" id="password" required name="password" title="Password" class="form-control"
-                       placeholder="admin">
+                       placeholder="admin" autocomplete="new-password">
               </div>
             </div>
 
