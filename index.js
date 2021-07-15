@@ -298,8 +298,27 @@
                 }
             });
         },
-
+        joinRegisteredGroup: (uid) => {
+            winston.info("[GROUP] joinRegisteredGroup")
+            const groupName = "registered";
+            const groupData = {
+                name: groupName,
+                userTitleEnabled: false,
+                description: 'Registered users Group',
+                hidden: 1,
+                system: 1,
+                private: 1,
+                disableJoinRequests: true,
+            };
+            winston.info("[GROUP] creating registered group")
+            groups.create(groupData);
+            winston.info("[GROUP] join registered group")
+            return groups.join([groupName], uid);
+        },
         postLogin: (uid, ldapId, callback) => {
+            if (master_config.registeredGroup === "on") {
+                nodebb_ldap.joinRegisteredGroup(uid);
+            }
             async.waterfall([
                     nodebb_ldap.findLdapGroups,
                     (groups, callback) => {

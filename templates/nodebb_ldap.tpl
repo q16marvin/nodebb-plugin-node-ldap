@@ -54,7 +54,7 @@
               <div class="col-sm-9">
                 <input type="text" id="dname" required name="dname" title="Username Field" class="form-control" placeholder="displayName">
               </div>
-            </div>           
+            </div>
             <div class="form-group col-md-12 col-sm-12">
               <label class="col-sm-3 control-label" for="dname">Surname Field</label>
               <div class="col-sm-9">
@@ -97,6 +97,14 @@
           <h4 class="page-header">Group Settings</h4>
           <div class="row">
             <div class="form-group col-md-12 col-sm-12">
+              <label class="col-sm-3 control-label" for="registeredGroup">Automatically add to the registered Nodebb group</label>
+              <div class="col-sm-9 checkbox">
+                <input type="checkbox" id="registeredGroup" name="registeredGroup" title="Automatically add to the registered Nodebb group">
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="form-group col-md-12 col-sm-12">
               <label class="col-sm-3 control-label" for="base">Administrator Groups</label>
               <div class="col-sm-9">
                 <input type="text" id="groups_query" required name="admin_groups" title="Administrator Groups"
@@ -129,6 +137,6 @@
         $('#save').on('click', function() {
             Settings.save('nodebbldap', $('.ldap-settings'));
         });
-        
+
     });
 </script>

@@ -24,5 +24,11 @@ sudo apt-get update && apt-get install -y ldap-utils dnsutils
 ```
 ## Screenshots
 
-### Desktop
-![Desktop OfficeLDAP](screenshots/desktop.png?raw=true)
+### LDAP Settings
+![Desktop LDAP Settings](screenshots/ldap-settings.png?raw=true)
+
+### Account Settings
+![Desktop Account Settings](screenshots/account-settings.png?raw=true)
+
+### Group Settings
+![Desktop Group Settings](screenshots/group-settings.png?raw=true)
