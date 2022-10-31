@@ -131,12 +131,4 @@
   </div>
 </form>
 
-<script>
-    require(['settings'], function(Settings) {
-        Settings.load('nodebbldap', $('.ldap-settings'));
-        $('#save').on('click', function() {
-            Settings.save('nodebbldap', $('.ldap-settings'));
-        });
 
-    });
-</script>

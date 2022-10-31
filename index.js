@@ -40,7 +40,7 @@
 
         init: (params, callback) => {
             const render = (req, res, next) => {
-                res.render('nodebb_ldap', {});
+                res.render('admin/plugins/nodebb_ldap', {});
             };
             winston.verbose("[LDAP] Calling Init")
             params.router.get('/admin/plugins/nodebb_ldap', params.middleware.admin.buildHeader, render);
@@ -377,6 +377,9 @@
             db.getObjectField('ldapid:uid', ldapUid, (err, uid) => {
                 if (err) {
                     return callback(err);
+                }
+                if (!uid) {
+                    return callback(null, { uid: 0 });
                 }
                 user.getUserData(uid, (err, data) => {
                     if (err) {

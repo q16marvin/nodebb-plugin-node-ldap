@@ -12,7 +12,7 @@
 		{ "hook": "filter:admin.header.build", "method": "adminHeader" }
 	],
 	"templates": "templates",
-	"acpScripts": [
-		"lib/nodebb_ldap.js"
-	]
+	"modules": {
+		"../admin/plugins/nodebb_ldap.js": "lib/nodebb_ldap.js"
+	}
 }
