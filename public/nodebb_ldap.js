@@ -1,20 +1,19 @@
-define('admin/plugins/nodebb_ldap', ['settings'], function(Settings) {
-    'use strict';
-    /* globals $, app, socket, require */
+'use strict';
 
+define('admin/plugins/nodebb_ldap', ['settings', 'alerts'], function(Settings, alerts) {
     var ACP = {};
 
     ACP.init = function() {
         Settings.load('nodebbldap', $('.ldap-settings'));
         $('#save').on('click', function() {
             Settings.save('nodebbldap', $('.ldap-settings'), function() {
-                app.alert({
-                    type: 'success',
-                    alert_id: 'nodebbldap-saved',
+                alerts.success({
                     title: 'Settings Saved',
                     message: 'Please reload your NodeBB to apply these settings',
+					clickfn: function () {
+                        socket.emit('admin.reload');
+					},
                 });
-                socket.emit('admin.reload');
             });
         });
     };

@@ -1,8 +1,4 @@
 {
-    "id": "nodebb-plugin-node-ldap-new",
-    "name": "Node LDAP",
-    "description": "An LDAP plugin",
-	"url": "https://github.com/csturiale/nodebb-plugin-node-ldap",
 	"library": "./index.js",
 	"hooks": [
 		{ "hook": "static:app.load", "method": "init" },
@@ -13,6 +9,6 @@
 	],
 	"templates": "templates",
 	"modules": {
-		"../admin/plugins/nodebb_ldap.js": "lib/nodebb_ldap.js"
+		"../admin/plugins/nodebb_ldap.js": "public/nodebb_ldap.js"
 	}
 }
