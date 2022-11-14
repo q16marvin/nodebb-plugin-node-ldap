@@ -254,7 +254,7 @@
             if (profile[master_config.email_field]) {
                 email = profile[master_config.email_field];
             }
-            if (email.indexOf("@") === -1) {
+            if (email && email.indexOf("@") === -1) {
                 if (master_config.email_suffix.indexOf("@") === -1) {
                     email = email + "@" + master_config.email_suffix
                 } else {
