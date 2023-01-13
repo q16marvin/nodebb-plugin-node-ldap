@@ -105,9 +105,9 @@
                 return callback(null, []);
             }
             nodebb_ldap.adminClient((err, adminClient) => {
-                //if (err) {
-                //    return adminClient(null);
-                //}
+                if (err) {
+                   return callback(err);
+                }
                 var groups_search = {
                     filter: master_config.groups_query,
                     scope: 'sub',
@@ -329,7 +329,10 @@
                                 nodebb_ldap.groupJoin(ldapGroup, ldapId, uid, callback);
                             }, callback);
                     }],
-                () => {
+                (err) => {
+                    if (err) {
+                        return callback(err);
+                    }
                     callback(null, {uid: uid});
                 }
             );
