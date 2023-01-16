@@ -281,19 +281,27 @@
                         username = username.replace(pattern, '');
                     }
                     winston.verbose("[LDAP] username: " + username + " fullname: " + fullname + " email: " + email)
-                    return user.create({username: username, fullname: fullname, email: email}, (err, uid) => {
+                    user.create({
+                        username: username,
+                        fullname: fullname,
+                        email: email,
+                    }, async (err, uid) => {
                         if (err) {
                             return callback(err);
                         }
                         winston.verbose("[LDAP] Creating the user and set autovalidate to: " + master_config.autovalidate === "on")
-                        if (master_config.autovalidate === "on") {
-                            user.setUserField(uid, 'email:confirmed', 1);
+                        if (master_config.autovalidate === "on" && email) {
+                            await user.setUserField(uid, 'email', email);
+                            await user.email.confirmByUid(uid);
                         }
-                        user.setUserFields(uid, {
-                            'nodebbldap:uid:': profile.uid
-                        });
-                        db.setObjectField('ldapid:uid', profile.uid, uid)
-                        return nodebb_ldap.postLogin(uid, profile.uid, callback);
+                        await Promise.all([
+                            user.setUserFields(uid, {
+                                'nodebbldap:uid:': profile.uid
+                            }),
+                            db.setObjectField('ldapid:uid', profile.uid, uid)
+                        ]);
+
+                        nodebb_ldap.postLogin(uid, profile.uid, callback);
                     });
                 }
             });
