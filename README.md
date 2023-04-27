@@ -16,7 +16,7 @@ Features of the plugin include:
 ## Installation
 The easiest way to install the plugin is via the Admin Control Panel (ACP - located at https://your.domain.name/admin/). Navigate to Plugins>Install Plugins>Find Plugins and search for 'nodebb-plugin-node-ldap'. Install the plugin, activate it and rebuild and restart NodeBB using the ACP Dashboard. Alternatively, the plugin can be manually installed from the command line as follows:
 ```
-npm install nodebb-plugin-node-ldap
+npm install @nodebb/nodebb-plugin-node-ldap
 ```
 It is possible that your linux distribution may be missing some dependencies for this plugin to work. If that is the case, try:
 ```
