@@ -306,7 +306,7 @@
                 }
             });
         },
-        joinRegisteredGroup: (uid) => {
+        joinRegisteredGroup: (uid, callback) => {
             winston.info("[GROUP] joinRegisteredGroup")
             const groupName = "registered";
             const groupData = {
@@ -318,16 +318,32 @@
                 private: 1,
                 disableJoinRequests: true,
             };
-            winston.info("[GROUP] creating registered group")
-            groups.create(groupData);
-            winston.info("[GROUP] join registered group")
-            return groups.join([groupName], uid);
+            async.waterfall([
+                function (next) {
+                    groups.exists(groupName, next);
+                },
+                function (exists, next) {
+                    if (exists) {
+                        return next();
+                    }
+                    winston.info("[GROUP] creating registered group")
+                    groups.create(groupData, next);
+                },
+                function (createdGroupData, next) {
+                    winston.info("[GROUP] join registered group")
+                    groups.join([groupName], uid, next);
+                }
+            ], callback);
         },
         postLogin: (uid, ldapId, callback) => {
-            if (master_config.registeredGroup === "on") {
-                nodebb_ldap.joinRegisteredGroup(uid);
-            }
             async.waterfall([
+                    function (next) {
+                        if (master_config.registeredGroup === "on") {
+                            nodebb_ldap.joinRegisteredGroup(uid, next);
+                        } else {
+                            next();
+                        }
+                    },
                     nodebb_ldap.findLdapGroups,
                     (groups, callback) => {
                         winston.verbose("[LDAP] Groups " + groups)
