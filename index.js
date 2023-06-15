@@ -394,7 +394,9 @@
                         }
                         return groups.join(groupsToJoin, uid, callback);
                     } else {
-                        callback();
+                        const groupsToUnJoin = [groupId];
+						winston.verbose("[LDAP] unjoins group" + ldapGroup.cn + " uid " + uid);
+						return groups.leave(groupsToUnJoin, uid, callback);
                     }
                 }
             );
