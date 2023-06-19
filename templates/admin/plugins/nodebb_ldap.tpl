@@ -122,11 +122,7 @@
           </div>
         </div>
       </div>
-      <div class="form-group col-lg-3 col-md-3 col-sm-4">
-        <button class="btn btn-lg btn-primary btn-block" type="button" id="save">
-          <i class="fa fa-save"></i> Save Settings
-        </button>
-      </div>
+     <!-- IMPORT admin/partials/save_button.tpl -->
     </div>
   </div>
 </form>
